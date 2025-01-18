@@ -121,7 +121,23 @@ python -m pytest tests/test_data_collection.py
 - Michael Larbi - Project Lead
 
 ## License
-[Your chosen license]
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+The MIT License is a permissive license that is short and to the point. It lets people do anything they want with your code as long as they provide attribution back to you and don't hold you liable.
+
+### Permissions
+- ✅ Commercial use
+- ✅ Modification
+- ✅ Distribution
+- ✅ Private use
+
+### Limitations
+- ❌ No Liability
+- ❌ No Warranty
+
+### Conditions
+- ℹ️ License and copyright notice
 
 ## Contact
 For questions and support, please [open an issue](https://github.com/yourusername/streaming-analytics-dashboard/issues) or email me at mkklarbi@me.com.
