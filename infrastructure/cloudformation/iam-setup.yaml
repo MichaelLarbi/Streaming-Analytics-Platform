@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-02'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: 'IAM Roles for Streaming Analytics Dashboard'
 
 Resources:
@@ -71,4 +71,3 @@ Outputs:
     Value: !GetAtt SageMakerExecutionRole.Arn
     Export:
       Name: !Sub ${AWS::StackName}-sagemaker-role-arn
-      
