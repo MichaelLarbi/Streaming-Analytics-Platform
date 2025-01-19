@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-02'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: 'VPC and Security Configuration for Streaming Analytics Dashboard'
 
 Parameters:
