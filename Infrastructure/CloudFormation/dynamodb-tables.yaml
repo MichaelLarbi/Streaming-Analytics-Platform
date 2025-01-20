@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DynamoDB tables for Streaming Analytics Platform'
+
+Resources:
+  RawStreamingData:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: raw-streaming-data
+      BillingMode: PAY_PER_REQUEST  # Starts with on-demand pricing for development
+      AttributeDefinitions:
+        - AttributeName: platform_track_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: platform_track_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  ProcessedAnalytics:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: processed-analytics
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: track_id
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: track_id
+          KeyType: HASH
+        - AttributeName: date
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  UserAuth:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: user-auth
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+
+  PlaylistTracking:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: playlist-tracking
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: playlist_id
+          AttributeType: S
+        - AttributeName: track_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: playlist_id
+          KeyType: HASH
+        - AttributeName: track_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: TrackPlaylistIndex
+          KeySchema:
+            - AttributeName: track_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+Outputs:
+  RawStreamingDataTableName:
+    Description: Name of the raw streaming data table
+    Value: !Ref RawStreamingData
+  ProcessedAnalyticsTableName:
+    Description: Name of the processed analytics table
+    Value: !Ref ProcessedAnalytics
+  UserAuthTableName:
+    Description: Name of the user authentication table
+    Value: !Ref UserAuth
+  PlaylistTrackingTableName:
+    Description: Name of the playlist tracking table
+    Value: !Ref PlaylistTracking
+    
