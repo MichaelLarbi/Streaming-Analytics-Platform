@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Basic CloudFormation template for AWS Glue workspace'
+
+Resources:
+  # S3 bucket for Glue scripts and temporary data
+  GlueScriptsBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub 'sap-glue-${AWS::Region}-${AWS::AccountId}-scripts'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # IAM Role for Glue
+  GlueServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: 'sap-glue-service-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: GlueS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt GlueScriptsBucket.Arn
+                  - !Sub '${GlueScriptsBucket.Arn}/*'
+
+  # Glue Database
+  GlueDatabase:
+    Type: 'AWS::Glue::Database'
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: 'sap_analytics_db'
+        Description: 'Database for Streaming Analytics Platform'
+
+Outputs:
+  GlueScriptsBucketName:
+    Description: Name of the S3 bucket for Glue scripts
+    Value: !Ref GlueScriptsBucket
+  
+  GlueDatabaseName:
+    Description: Name of the Glue database
+    Value: !Ref GlueDatabase
+    
+  GlueServiceRoleArn:
+    Description: ARN of the Glue service role
+    Value: !GetAtt GlueServiceRole.Arn
+    
