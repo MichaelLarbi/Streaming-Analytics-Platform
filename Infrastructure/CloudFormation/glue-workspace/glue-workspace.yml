@@ -1,12 +1,18 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'CloudFormation template for setting up AWS Glue workspace for Streaming Analytics Platform'
 
+Parameters:
+  ProjectName:
+    Type: String
+    Default: sap
+    Description: 'Project name prefix for resources'
+
 Resources:
   # S3 bucket for Glue scripts and temporary data
   GlueScriptsBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
-      BucketName: !Sub '${AWS::StackName}-glue-scripts-${AWS::AccountId}'
+      BucketName: !Sub '${ProjectName}-glue-${AWS::Region}-${AWS::AccountId}'
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -19,6 +25,7 @@ Resources:
   GlueServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
+      RoleName: !Sub '${ProjectName}-glue-service-role'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -49,14 +56,14 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
-        Name: !Sub '${AWS::StackName}-streaming-analytics-db'
+        Name: !Sub '${ProjectName}_analytics_db'
         Description: 'Database for Streaming Analytics Platform'
 
   # Glue Dev Endpoint
   GlueDevEndpoint:
     Type: 'AWS::Glue::DevEndpoint'
     Properties:
-      EndpointName: !Sub '${AWS::StackName}-dev-endpoint'
+      EndpointName: !Sub '${ProjectName}-dev-endpoint'
       RoleArn: !GetAtt GlueServiceRole.Arn
       NumberOfNodes: 2
       GlueVersion: '3.0'
