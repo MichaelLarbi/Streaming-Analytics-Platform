@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DynamoDB table for API rate limiting'
+
+Resources:
+  ApiRateLimitsTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: api_rate_limits
+      AttributeDefinitions:
+        - AttributeName: api_key
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      KeySchema:
+        - AttributeName: api_key
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      
