@@ -1,3 +1,14 @@
+# Create or update the file with proper Mermaid syntax
+cat > docs/architecture/system-architecture.md << 'EOL'
+# Streaming Analytics Platform - System Architecture
+
+## Overview
+
+This document details the system architecture of the Streaming Analytics Platform, a comprehensive solution for aggregating and analyzing music streaming data across multiple platforms.
+
+## System Architecture Diagram
+
+```mermaid
 flowchart TB
     %% Presentation Layer
     subgraph Presentation["Presentation Layer"]
@@ -84,3 +95,4 @@ flowchart TB
     class SpotifyLambda,AppleLambda,YTLambda,ETL,MLPipeline business
     class RawDB,ProcessedDB,MLModels data
     class SpotifyAPI,AppleAPI,YTAPI external
+    
