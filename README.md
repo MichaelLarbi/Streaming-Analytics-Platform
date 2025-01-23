@@ -80,6 +80,11 @@ A comprehensive analytics dashboard that aggregates and analyzes music streaming
 └─────────────────┘     └─────────────────┘     │   Analytics     │
                                                 └─────────────────┘
 ```
+## System Architecture
+
+![System Architecture Overview](docs/architecture/system-architecture.png)
+
+For detailed architecture documentation, see [Architecture Documentation](docs/architecture/system-architecture.md)
 
 ## Contributing
 1. Create a feature branch from `develop`
