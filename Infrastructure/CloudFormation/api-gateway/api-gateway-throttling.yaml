@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'API Gateway with throttling configuration for Streaming Analytics Platform'
+
+Parameters:
+  StageName:
+    Type: String
+    Default: 'dev'
+    Description: 'API Gateway deployment stage name'
+  
+  AccountLevelThrottlingBurstLimit:
+    Type: Number
+    Default: 5000
+    Description: 'Account level throttling burst limit'
+  
+  AccountLevelThrottlingRateLimit:
+    Type: Number
+    Default: 10000
+    Description: 'Account level throttling rate limit per second'
+
+Resources:
+  StreamingAnalyticsApi:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'streaming-analytics-api'
+      Description: 'API for Streaming Analytics Platform'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # Health Check Resource and Method
+  HealthCheckResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref StreamingAnalyticsApi
+      ParentId: !GetAtt StreamingAnalyticsApi.RootResourceId
+      PathPart: 'health'
+
+  HealthCheckMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref StreamingAnalyticsApi
+      ResourceId: !Ref HealthCheckResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: '{"status": "healthy"}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: 'Empty'
+
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn: 
+      - HealthCheckMethod
+    Properties:
+      RestApiId: !Ref StreamingAnalyticsApi
+      Description: 'Initial deployment for the API'
+
+  ApiGatewayStage:
+    Type: 'AWS::ApiGateway::Stage'
+    Properties:
+      DeploymentId: !Ref ApiDeployment
+      RestApiId: !Ref StreamingAnalyticsApi
+      StageName: !Ref StageName
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingBurstLimit: 1000
+          ThrottlingRateLimit: 2000
+          MetricsEnabled: true
+          DataTraceEnabled: true
+          LoggingLevel: INFO
+
+  ApiGatewayUsagePlan:
+    Type: 'AWS::ApiGateway::UsagePlan'
+    DependsOn: ApiGatewayStage
+    Properties:
+      ApiStages:
+        - ApiId: !Ref StreamingAnalyticsApi
+          Stage: !Ref StageName
+      Description: 'Usage plan for Streaming Analytics API'
+      Throttle:
+        BurstLimit: !Ref AccountLevelThrottlingBurstLimit
+        RateLimit: !Ref AccountLevelThrottlingRateLimit
+
+Outputs:
+  ApiGatewayUrl:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${StreamingAnalyticsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+  
+  ApiId:
+    Description: 'API Gateway ID'
+    Value: !Ref StreamingAnalyticsApi
+    
+  HealthCheckEndpoint:
+    Description: 'Health Check endpoint URL'
+    Value: !Sub 'https://${StreamingAnalyticsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/health'
+    
