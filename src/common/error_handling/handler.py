@@ -7,14 +7,11 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def handle_error(error: Exception) -> Dict[str, Any]:
-    """
-    Handles errors and returns appropriate response format
-    """
     logger.error(f"Error: {str(error)}")
     logger.error(f"Traceback: {''.join(traceback.format_tb(error.__traceback__))}")
     
     status_code = getattr(error, 'status_code', 500)
-    message = getattr(error, 'message', str(error))
+    message = getattr(error, 'message', 'Internal server error')
     
     return {
         'statusCode': status_code,
@@ -25,15 +22,10 @@ def handle_error(error: Exception) -> Dict[str, Any]:
         })
     }
 
-def lambda_handler_wrapper(handler_function):
-    """
-    Decorator for Lambda handlers that adds error handling
-    """
+def lambda_handler_wrapper(func):
     def wrapper(event: Dict[str, Any], context: Optional[Any] = None) -> Dict[str, Any]:
         try:
-            response = handler_function(event, context)
-            return response
+            return func(event, context)
         except Exception as e:
             return handle_error(e)
-            
     return wrapper
