@@ -1,60 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'API Gateway with throttling configuration for Streaming Analytics Platform'
-
-Parameters:
-  StageName:
-    Type: String
-    Default: 'dev'
-    Description: 'API Gateway deployment stage name'
-  
-  AccountLevelThrottlingBurstLimit:
-    Type: Number
-    Default: 5000
-    Description: 'Account level throttling burst limit'
-  
-  AccountLevelThrottlingRateLimit:
-    Type: Number
-    Default: 10000
-    Description: 'Account level throttling rate limit per second'
-
-Resources:
-  # IAM Role for API Gateway CloudWatch Logging
-  ApiGatewayCloudWatchRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs'
-      RoleName: !Sub '${AWS::StackName}-apigateway-cloudwatch-role'
-
-  # API Gateway Account Settings
-  ApiGatewayAccount:
-    Type: 'AWS::ApiGateway::Account'
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
-
-  StreamingAnalyticsApi:
-    Type: 'AWS::ApiGateway::RestApi'
-    Properties:
-      Name: 'streaming-analytics-api'
-      Description: 'API for Streaming Analytics Platform'
-      EndpointConfiguration:
-        Types:
-          - REGIONAL
-
-  # Health Check Resource and Method
-  HealthCheckResource:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: !Ref StreamingAnalyticsApi
-      ParentId: !GetAtt StreamingAnalyticsApi.RootResourceId
-      PathPart: 'health'
+// ... existing code ...
 
   HealthCheckMethod:
     Type: 'AWS::ApiGateway::Method'
@@ -62,7 +6,7 @@ Resources:
       RestApiId: !Ref StreamingAnalyticsApi
       ResourceId: !Ref HealthCheckResource
       HttpMethod: GET
-      AuthorizationType: NONE
+      AuthorizationType: API_KEY  # Changed from NONE to API_KEY
       Integration:
         Type: MOCK
         RequestTemplates:
@@ -75,52 +19,39 @@ Resources:
         - StatusCode: 200
           ResponseModels:
             application/json: 'Empty'
+        - StatusCode: 429    # Add 429 Too Many Requests response
+          ResponseModels:
+            application/json: 'Empty'
 
-  ApiDeployment:
-    Type: 'AWS::ApiGateway::Deployment'
-    DependsOn: 
-      - HealthCheckMethod
+  # Add API Key
+  ApiKey:
+    Type: 'AWS::ApiGateway::ApiKey'
+    DependsOn: ApiDeployment
     Properties:
-      RestApiId: !Ref StreamingAnalyticsApi
-      Description: 'Initial deployment for the API'
+      Name: 'StreamingAnalyticsApiKey'
+      Description: 'API Key for Streaming Analytics API'
+      Enabled: true
+      StageKeys:
+        - RestApiId: !Ref StreamingAnalyticsApi
+          StageName: !Ref StageName
 
-  ApiGatewayStage:
-    Type: 'AWS::ApiGateway::Stage'
-    DependsOn: ApiGatewayAccount
+  # Associate API Key with Usage Plan
+  UsagePlanKey:
+    Type: 'AWS::ApiGateway::UsagePlanKey'
     Properties:
-      DeploymentId: !Ref ApiDeployment
-      RestApiId: !Ref StreamingAnalyticsApi
-      StageName: !Ref StageName
-      MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
-          ThrottlingBurstLimit: 1000
-          ThrottlingRateLimit: 2000
-          MetricsEnabled: true
-          DataTraceEnabled: true
-          LoggingLevel: INFO
+      KeyId: !Ref ApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiGatewayUsagePlan
 
-  ApiGatewayUsagePlan:
-    Type: 'AWS::ApiGateway::UsagePlan'
-    DependsOn: ApiGatewayStage
-    Properties:
-      ApiStages:
-        - ApiId: !Ref StreamingAnalyticsApi
-          Stage: !Ref StageName
-      Description: 'Usage plan for Streaming Analytics API'
-      Throttle:
-        BurstLimit: !Ref AccountLevelThrottlingBurstLimit
-        RateLimit: !Ref AccountLevelThrottlingRateLimit
+// ... existing code ...
 
 Outputs:
-  ApiGatewayUrl:
-    Description: 'API Gateway endpoint URL'
-    Value: !Sub 'https://${StreamingAnalyticsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+  # Add these new outputs
+  ApiKeyId:
+    Description: 'API Key ID'
+    Value: !Ref ApiKey
   
-  ApiId:
-    Description: 'API Gateway ID'
-    Value: !Ref StreamingAnalyticsApi
+  ApiKeyValue:
+    Description: 'API Key Value'
+    Value: !GetAtt ApiKey.APIKeyId
     
-  HealthCheckEndpoint:
-    Description: 'Health Check endpoint URL'
-    Value: !Sub 'https://${StreamingAnalyticsApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/health'
