@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Enhanced API Authentication Setup for Streaming Analytics Platform'
+Description: 'Simplified API Authentication Setup for Streaming Analytics Platform'
 
 Parameters:
   Environment:
@@ -17,11 +17,13 @@ Parameters:
     Description: 'Project name for resource naming'
 
 Resources:
-  # Cognito User Pool
+  # Cognito User Pool with minimal configuration
   UserPool:
     Type: 'AWS::Cognito::UserPool'
     Properties:
       UserPoolName: !Sub '${ProjectName}-${Environment}-pool'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
       AutoVerifiedAttributes:
         - email
       UsernameAttributes:
@@ -33,15 +35,8 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
-      Schema:
-        - Name: email
-          AttributeDataType: String
-          Mutable: true
-          Required: true
-      EmailConfiguration:
-        EmailSendingAccount: COGNITO_DEFAULT
 
-  # Cognito User Pool Client with OAuth2.0 scopes
+  # Simple Cognito User Pool Client
   UserPoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
     Properties:
@@ -51,21 +46,8 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
-      PreventUserExistenceErrors: ENABLED
-      AllowedOAuthFlows:
-        - implicit
-        - code
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthScopes:
-        - email
-        - openid
-        - profile
-      CallbackURLs:
-        - http://localhost:3000/callback
-      SupportedIdentityProviders:
-        - COGNITO
 
-  # API Gateway with CORS
+  # Basic API Gateway
   ApiGateway:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
@@ -75,7 +57,7 @@ Resources:
         Types:
           - REGIONAL
 
-  # API Gateway Authorizer (after ApiGateway to resolve circular dependency)
+  # Basic API Gateway Authorizer
   ApiGatewayAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
     Properties:
@@ -86,77 +68,20 @@ Resources:
       ProviderARNs:
         - !GetAtt UserPool.Arn
 
-  # API Gateway CORS Method
-  ApiGatewayRootMethod:
-    Type: 'AWS::ApiGateway::Method'
+  # Simple API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn: ApiGatewayAuthorizer
     Properties:
       RestApiId: !Ref ApiGateway
-      ResourceId: !GetAtt ApiGateway.RootResourceId
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,POST,PUT,DELETE'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
 
   # API Gateway Stage
   ApiGatewayStage:
     Type: 'AWS::ApiGateway::Stage'
-    DependsOn: ApiGatewayDeployment
     Properties:
       DeploymentId: !Ref ApiGatewayDeployment
       RestApiId: !Ref ApiGateway
       StageName: !Ref Environment
-      MethodSettings:
-        - ResourcePath: '/*'
-          HttpMethod: '*'
-          MetricsEnabled: true
-          DataTraceEnabled: true
-          LoggingLevel: INFO
-
-  # API Gateway Deployment
-  ApiGatewayDeployment:
-    Type: 'AWS::ApiGateway::Deployment'
-    DependsOn: 
-      - ApiGatewayRootMethod
-      - ApiGatewayAuthorizer
-    Properties:
-      RestApiId: !Ref ApiGateway
-
-  # WAF Web ACL
-  ApiGatewayWAFACL:
-    Type: 'AWS::WAFv2::WebACL'
-    Properties:
-      Name: !Sub '${ProjectName}-${Environment}-waf'
-      Description: 'WAF Web ACL for API Gateway'
-      Scope: REGIONAL
-      DefaultAction:
-        Allow: {}
-      Rules:
-        - Name: RateLimit
-          Priority: 1
-          Statement:
-            RateBasedStatement:
-              Limit: 2000
-              AggregateKeyType: IP
-          Action:
-            Block: {}
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: RateLimitRule
 
 Outputs:
   UserPoolId:
@@ -166,14 +91,6 @@ Outputs:
   UserPoolClientId:
     Description: 'Cognito User Pool Client ID'
     Value: !Ref UserPoolClient
-
-  ApiGatewayId:
-    Description: 'API Gateway ID'
-    Value: !Ref ApiGateway
-
-  ApiGatewayAuthorizerId:
-    Description: 'API Gateway Authorizer ID'
-    Value: !Ref ApiGatewayAuthorizer
 
   ApiEndpoint:
     Description: 'API Gateway Endpoint URL'
