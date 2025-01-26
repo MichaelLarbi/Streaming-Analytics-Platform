@@ -1,0 +1,1 @@
+{"statusCode": 400, "body": "{\"error\": true, \"message\": \"client_id is required\", \"type\": \"ValidationError\"}"}
