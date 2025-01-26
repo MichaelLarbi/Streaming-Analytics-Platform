@@ -1,0 +1,23 @@
+[
+    {
+      "ParameterKey": "Environment",
+      "ParameterValue": "dev"
+    },
+    {
+      "ParameterKey": "ProjectName",
+      "ParameterValue": "streaming-analytics"
+    },
+    {
+      "ParameterKey": "DynamoDBTableName",
+      "ParameterValue": "your-dynamodb-table-name"
+    },
+    {
+      "ParameterKey": "LambdaFunctionName",
+      "ParameterValue": "your-lambda-function-name"
+    },
+    {
+      "ParameterKey": "AlertEmail",
+      "ParameterValue": "your-email@example.com"
+    }
+  ]
+  

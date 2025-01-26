@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Enhanced CloudWatch Logging and Monitoring Setup for Streaming Analytics Platform'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name for resource naming'
+
+  ProjectName:
+    Type: String
+    Default: 'streaming-analytics'
+    Description: 'Base name for the project resources'
+
+  DynamoDBTableName:
+    Type: String
+    Description: 'Name of the existing DynamoDB table to monitor'
+
+  LambdaFunctionName:
+    Type: String
+    Description: 'Name of the existing Lambda function to monitor'
+
+  AlertEmail:
+    Type: String
+    Description: 'Email address to receive monitoring alerts'
+
+Resources:
+  # SNS Topic for Alerts
+  MonitoringAlertTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: !Sub '${ProjectName}-${Environment}-alerts'
+      DisplayName: 'Streaming Analytics Monitoring Alerts'
+
+  # SNS Topic Subscription
+  AlertTopicSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      TopicArn: !Ref MonitoringAlertTopic
+      Protocol: 'email'
+      Endpoint: !Ref AlertEmail
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Enhanced CloudWatch Dashboard
+  MainDashboard:
+    Type: 'AWS::CloudWatch::Dashboard'
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${LambdaFunctionName}"],
+                  [".", "Errors", ".", "."],
+                  [".", "Duration", ".", "."],
+                  [".", "ConcurrentExecutions", ".", "."],
+                  [".", "Throttles", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Lambda Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${DynamoDBTableName}"],
+                  [".", "ConsumedWriteCapacityUnits", ".", "."],
+                  [".", "ReadThrottleEvents", ".", "."],
+                  [".", "WriteThrottleEvents", ".", "."],
+                  [".", "SystemErrors", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "DynamoDB Metrics"
+              }
+            },
+            {
+              "type": "log",
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${LambdaFunctionName}' | fields @timestamp, @message\n| filter @message like /ERROR/\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Recent Lambda Errors",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
+  # Enhanced CloudWatch Alarms
+  LambdaErrorAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-lambda-errors'
+      AlarmDescription: 'Alert when Lambda function errors exceed threshold'
+      MetricName: 'Errors'
+      Namespace: 'AWS/Lambda'
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  LambdaThrottleAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-lambda-throttles'
+      AlarmDescription: 'Alert when Lambda function is being throttled'
+      MetricName: 'Throttles'
+      Namespace: 'AWS/Lambda'
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  DynamoDBThrottlingAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-dynamodb-throttling'
+      AlarmDescription: 'Alert when DynamoDB requests are throttled'
+      MetricName: 'ThrottledRequests'
+      Namespace: 'AWS/DynamoDB'
+      Dimensions:
+        - Name: TableName
+          Value: !Ref DynamoDBTableName
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+Outputs:
+  LogGroupName:
+    Description: 'CloudWatch Log Group Name'
+    Value: !Ref LambdaLogGroup
+  
+  DashboardURL:
+    Description: 'CloudWatch Dashboard URL'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${MainDashboard}'
+  
+  SNSTopicARN:
+    Description: 'SNS Topic ARN for Alerts'
+    Value: !Ref MonitoringAlertTopic
