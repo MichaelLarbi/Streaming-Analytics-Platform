@@ -8,16 +8,27 @@
       "ParameterValue": "streaming-analytics"
     },
     {
-      "ParameterKey": "DynamoDBTableName",
-      "ParameterValue": "your-dynamodb-table-name"
+      "ParameterKey": "PlaylistTrackingTable",
+      "ParameterValue": "playlist-tracking"
+    },
+    {
+      "ParameterKey": "ProcessedAnalyticsTable",
+      "ParameterValue": "processed-analytics"
+    },
+    {
+      "ParameterKey": "RawStreamingDataTable",
+      "ParameterValue": "raw-streaming-data"
+    },
+    {
+      "ParameterKey": "UserAuthTable",
+      "ParameterValue": "user-auth"
     },
     {
       "ParameterKey": "LambdaFunctionName",
-      "ParameterValue": "your-lambda-function-name"
+      "ParameterValue": "spotify-credentials-validator"
     },
     {
       "ParameterKey": "AlertEmail",
-      "ParameterValue": "your-email@example.com"
+      "ParameterValue": "mkklarbi@me.com"
     }
   ]
-  
