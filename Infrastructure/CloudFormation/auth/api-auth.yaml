@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Simplified API Authentication Setup for Streaming Analytics Platform'
+Description: 'Enhanced API Authentication Setup for Streaming Analytics Platform'
 
 Parameters:
   Environment:
@@ -17,7 +17,7 @@ Parameters:
     Description: 'Project name for resource naming'
 
 Resources:
-  # Cognito User Pool with minimal configuration
+  # Enhanced Cognito User Pool
   UserPool:
     Type: 'AWS::Cognito::UserPool'
     Properties:
@@ -35,8 +35,13 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
 
-  # Simple Cognito User Pool Client
+  # Enhanced User Pool Client with OAuth
   UserPoolClient:
     Type: 'AWS::Cognito::UserPoolClient'
     Properties:
@@ -46,8 +51,21 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - http://localhost:3000/callback
+      SupportedIdentityProviders:
+        - COGNITO
 
-  # Basic API Gateway
+  # API Gateway with CORS
   ApiGateway:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
@@ -57,7 +75,32 @@ Resources:
         Types:
           - REGIONAL
 
-  # Basic API Gateway Authorizer
+  # API Gateway CORS Method
+  ApiGatewayRootMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !GetAtt ApiGateway.RootResourceId
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,POST,PUT,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # API Gateway Authorizer
   ApiGatewayAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
     Properties:
@@ -68,20 +111,28 @@ Resources:
       ProviderARNs:
         - !GetAtt UserPool.Arn
 
-  # Simple API Gateway Deployment
+  # API Gateway Deployment
   ApiGatewayDeployment:
     Type: 'AWS::ApiGateway::Deployment'
-    DependsOn: ApiGatewayAuthorizer
+    DependsOn: 
+      - ApiGatewayRootMethod
+      - ApiGatewayAuthorizer
     Properties:
       RestApiId: !Ref ApiGateway
 
-  # API Gateway Stage
+  # API Gateway Stage with Logging
   ApiGatewayStage:
     Type: 'AWS::ApiGateway::Stage'
     Properties:
       DeploymentId: !Ref ApiGatewayDeployment
       RestApiId: !Ref ApiGateway
       StageName: !Ref Environment
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          MetricsEnabled: true
+          DataTraceEnabled: true
+          LoggingLevel: INFO
 
 Outputs:
   UserPoolId:
@@ -95,3 +146,4 @@ Outputs:
   ApiEndpoint:
     Description: 'API Gateway Endpoint URL'
     Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    
