@@ -1,0 +1,255 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Enhanced CloudWatch Logging and Monitoring Setup for Streaming Analytics Platform'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name for resource naming'
+
+  ProjectName:
+    Type: String
+    Default: 'streaming-analytics'
+    Description: 'Base name for the project resources'
+
+  PlaylistTrackingTable:
+    Type: String
+    Default: 'playlist-tracking'
+    Description: 'Name of the playlist tracking DynamoDB table'
+
+  ProcessedAnalyticsTable:
+    Type: String
+    Default: 'processed-analytics'
+    Description: 'Name of the processed analytics DynamoDB table'
+
+  RawStreamingDataTable:
+    Type: String
+    Default: 'raw-streaming-data'
+    Description: 'Name of the raw streaming data DynamoDB table'
+
+  UserAuthTable:
+    Type: String
+    Default: 'user-auth'
+    Description: 'Name of the user authentication DynamoDB table'
+
+  LambdaFunctionName:
+    Type: String
+    Description: 'Name of the existing Lambda function to monitor'
+
+  AlertEmail:
+    Type: String
+    Description: 'Email address to receive monitoring alerts'
+
+Resources:
+  # SNS Topic for Alerts
+  MonitoringAlertTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: !Sub '${ProjectName}-${Environment}-alerts'
+      DisplayName: 'Streaming Analytics Monitoring Alerts'
+
+  # SNS Topic Subscription
+  AlertTopicSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      TopicArn: !Ref MonitoringAlertTopic
+      Protocol: 'email'
+      Endpoint: !Ref AlertEmail
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-${Environment}'
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Enhanced CloudWatch Dashboard
+  MainDashboard:
+    Type: 'AWS::CloudWatch::Dashboard'
+    Properties:
+      DashboardName: !Sub '${ProjectName}-${Environment}-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${LambdaFunctionName}"],
+                  [".", "Errors", ".", "."],
+                  [".", "Duration", ".", "."],
+                  [".", "ConcurrentExecutions", ".", "."],
+                  [".", "Throttles", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "Lambda Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${PlaylistTrackingTable}"],
+                  [".", "ConsumedWriteCapacityUnits", ".", "."],
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${ProcessedAnalyticsTable}"],
+                  [".", "ConsumedWriteCapacityUnits", ".", "."],
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${RawStreamingDataTable}"],
+                  [".", "ConsumedWriteCapacityUnits", ".", "."],
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${UserAuthTable}"],
+                  [".", "ConsumedWriteCapacityUnits", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "DynamoDB Capacity Usage"
+              }
+            },
+            {
+              "type": "metric",
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "${PlaylistTrackingTable}"],
+                  [".", "WriteThrottleEvents", ".", "."],
+                  ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "${ProcessedAnalyticsTable}"],
+                  [".", "WriteThrottleEvents", ".", "."],
+                  ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "${RawStreamingDataTable}"],
+                  [".", "WriteThrottleEvents", ".", "."],
+                  ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "${UserAuthTable}"],
+                  [".", "WriteThrottleEvents", ".", "."]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "DynamoDB Throttle Events"
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarms for Lambda
+  LambdaErrorAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-lambda-errors'
+      AlarmDescription: 'Alert when Lambda function errors exceed threshold'
+      MetricName: 'Errors'
+      Namespace: 'AWS/Lambda'
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaFunctionName
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+
+  # DynamoDB Alarms - One for each table
+  PlaylistTrackingThrottleAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-playlist-throttling'
+      AlarmDescription: 'Alert when Playlist Tracking table requests are throttled'
+      MetricName: 'ThrottledRequests'
+      Namespace: 'AWS/DynamoDB'
+      Dimensions:
+        - Name: TableName
+          Value: !Ref PlaylistTrackingTable
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+
+  ProcessedAnalyticsThrottleAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-analytics-throttling'
+      AlarmDescription: 'Alert when Processed Analytics table requests are throttled'
+      MetricName: 'ThrottledRequests'
+      Namespace: 'AWS/DynamoDB'
+      Dimensions:
+        - Name: TableName
+          Value: !Ref ProcessedAnalyticsTable
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+
+  RawStreamingDataThrottleAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-rawdata-throttling'
+      AlarmDescription: 'Alert when Raw Streaming Data table requests are throttled'
+      MetricName: 'ThrottledRequests'
+      Namespace: 'AWS/DynamoDB'
+      Dimensions:
+        - Name: TableName
+          Value: !Ref RawStreamingDataTable
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+
+  UserAuthThrottleAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-${Environment}-userauth-throttling'
+      AlarmDescription: 'Alert when User Auth table requests are throttled'
+      MetricName: 'ThrottledRequests'
+      Namespace: 'AWS/DynamoDB'
+      Dimensions:
+        - Name: TableName
+          Value: !Ref UserAuthTable
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref MonitoringAlertTopic
+
+Outputs:
+  LogGroupName:
+    Description: 'CloudWatch Log Group Name'
+    Value: !Ref LambdaLogGroup
+  
+  DashboardURL:
+    Description: 'CloudWatch Dashboard URL'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${MainDashboard}'
+  
+  SNSTopicARN:
+    Description: 'SNS Topic ARN for Alerts'
+    Value: !Ref MonitoringAlertTopic
+    
