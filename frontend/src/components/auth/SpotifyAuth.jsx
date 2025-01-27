@@ -3,9 +3,11 @@ import React, { useEffect, useState } from 'react';
 const SpotifyAuth = () => {
   const [authError, setAuthError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [authSuccess, setAuthSuccess] = useState(false);
   
-  const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '8cf77f03d31348b4953b2d65d96f1af1';
-  const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://0o0aso95ik.execute-api.eu-west-2.amazonaws.com/dev/spotify/callback';
+  // Development redirect URI - must match exactly what's in Spotify Dashboard
+  const REDIRECT_URI = 'http://localhost:5174/spotify-auth';
+  const CLIENT_ID = '8cf77f03d31348b4953b2d65d96f1af1';
   const SCOPES = [
     'user-read-private',
     'user-read-email',
@@ -28,13 +30,14 @@ const SpotifyAuth = () => {
       if (code) {
         try {
           setIsLoading(true);
-          console.log('Attempting to exchange code at:', REDIRECT_URI);
+          console.log('Received auth code:', code);
           
-          const response = await fetch(`${REDIRECT_URI}?code=${code}`, {
+          const response = await fetch('https://0o0aso95ik.execute-api.eu-west-2.amazonaws.com/dev/spotify/callback', {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
             },
+            credentials: 'omit'
           });
 
           if (!response.ok) {
@@ -47,7 +50,13 @@ const SpotifyAuth = () => {
           console.log('Successfully authenticated with Spotify');
           
           // Store the authentication result
-          localStorage.setItem('spotifyAuthCode', code);
+          localStorage.setItem('spotifyAuth', JSON.stringify(data));
+          setAuthSuccess(true);
+          
+          // Redirect to home page after 2 seconds
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
           
         } catch (error) {
           console.error('Error during callback:', error);
@@ -67,6 +76,19 @@ const SpotifyAuth = () => {
     console.log('Redirecting to Spotify auth URL:', authUrl);
     window.location.href = authUrl;
   };
+
+  if (authSuccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <div className="p-8 bg-white rounded-lg shadow-md">
+          <h2 className="mb-6 text-2xl font-bold text-center text-green-600">
+            Successfully connected to Spotify!
+          </h2>
+          <p className="text-gray-600">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
