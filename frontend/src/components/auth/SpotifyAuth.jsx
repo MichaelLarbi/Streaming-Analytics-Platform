@@ -6,7 +6,7 @@ const SpotifyAuth = () => {
   const [authSuccess, setAuthSuccess] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
   
-  // Move these to environment variables
+  // Constants from environment variables
   const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
   const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI;
   const API_ENDPOINT = import.meta.env.VITE_API_ENDPOINT;
@@ -20,18 +20,77 @@ const SpotifyAuth = () => {
   ];
 
   useEffect(() => {
-    // Generate and store state parameter for CSRF protection
-    const generateStateParam = () => {
-      const state = crypto.getRandomValues(new Uint8Array(16))
-        .reduce((acc, x) => acc + x.toString(16).padStart(2, '0'), '');
-      sessionStorage.setItem('spotify_auth_state', state);
-      return state;
+    const processCode = async (code) => {
+      // Check if we've already processed this code
+      const processedCode = sessionStorage.getItem('processed_auth_code');
+      if (processedCode === code) {
+        console.log('Auth code already processed, skipping');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setDebugInfo(prevInfo => ({
+          ...prevInfo,
+          stage: 'processing_code'
+        }));
+
+        const apiUrl = `${API_ENDPOINT}/spotify/callback?code=${encodeURIComponent(code)}`;
+        
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to exchange code');
+        }
+
+        if (data.access_token) {
+          // Mark this code as processed
+          sessionStorage.setItem('processed_auth_code', code);
+          
+          // Store the tokens
+          const tokenData = {
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+            expires_at: Date.now() + (data.expires_in * 1000),
+            token_type: data.token_type,
+            scope: data.scope
+          };
+          
+          localStorage.setItem('spotifyAuth', JSON.stringify(tokenData));
+          setAuthSuccess(true);
+          
+          setDebugInfo(prevInfo => ({
+            ...prevInfo,
+            stage: 'success',
+            tokenInfo: {
+              expiresAt: new Date(tokenData.expires_at).toISOString(),
+              tokenType: tokenData.token_type,
+              scope: tokenData.scope
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('Error during code exchange:', error);
+        setAuthError(error.message);
+        setDebugInfo(prevInfo => ({
+          ...prevInfo,
+          stage: 'error',
+          error: error.message
+        }));
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    // Clear any existing auth on component mount
-    localStorage.removeItem('spotifyAuth');
-    
     const checkAuthStatus = async () => {
+      // Check URL parameters
       const urlParams = new URLSearchParams(window.location.search);
       const spotifyCode = urlParams.get('code');
       const spotifyError = urlParams.get('error');
@@ -41,119 +100,69 @@ const SpotifyAuth = () => {
       setDebugInfo({
         stage: 'initial_check',
         params: {
-          code: spotifyCode ? 'present' : 'absent', // Don't log the actual code
+          hasCode: Boolean(spotifyCode),
           error: spotifyError,
           stateValid: receivedState === storedState
         }
       });
 
       if (spotifyError) {
-        console.error('Spotify authentication error:', spotifyError);
-        setAuthError('Failed to authenticate with Spotify');
+        setAuthError(`Authentication failed: ${spotifyError}`);
         return;
       }
 
-      // Validate state parameter
-      if (receivedState !== storedState) {
+      // Validate state if present
+      if (receivedState && receivedState !== storedState) {
         setAuthError('Invalid state parameter. Please try again.');
         return;
       }
 
       if (spotifyCode) {
-        await handleSpotifyCallback(spotifyCode);
+        await processCode(spotifyCode);
+      } else {
+        // Check for existing valid auth
+        const storedAuth = localStorage.getItem('spotifyAuth');
+        if (storedAuth) {
+          try {
+            const authData = JSON.parse(storedAuth);
+            if (authData.expires_at > Date.now()) {
+              setAuthSuccess(true);
+              setDebugInfo(prevInfo => ({
+                ...prevInfo,
+                stage: 'using_stored_auth',
+                tokenInfo: {
+                  expiresAt: new Date(authData.expires_at).toISOString(),
+                  tokenType: authData.token_type,
+                  scope: authData.scope
+                }
+              }));
+            }
+          } catch (error) {
+            console.error('Error parsing stored auth:', error);
+            localStorage.removeItem('spotifyAuth');
+          }
+        }
       }
     };
 
     checkAuthStatus();
-  }, []);
-
-  const handleSpotifyCallback = async (spotifyCode) => {
-    try {
-      setIsLoading(true);
-      setDebugInfo(prevInfo => ({
-        ...prevInfo,
-        stage: 'callback_started'
-      }));
-
-      const apiUrl = `${API_ENDPOINT}/spotify/callback?code=${encodeURIComponent(spotifyCode)}`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'omit' // Don't send cookies
-      });
-
-      let data;
-      try {
-        const responseText = await response.text();
-        data = JSON.parse(responseText);
-        
-        setDebugInfo(prevInfo => ({
-          ...prevInfo,
-          stage: 'api_response',
-          status: response.status,
-          error: data.error
-        }));
-      } catch (parseError) {
-        throw new Error('Invalid response format from server');
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to exchange authorization code');
-      }
-      
-      if (data.access_token) {
-        // Store tokens securely
-        const tokenData = {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_at: Date.now() + (data.expires_in * 1000),
-          token_type: data.token_type
-        };
-        
-        localStorage.setItem('spotifyAuth', JSON.stringify(tokenData));
-        setAuthSuccess(true);
-        setDebugInfo(prevInfo => ({
-          ...prevInfo,
-          stage: 'success',
-          tokenInfo: {
-            expiresAt: new Date(tokenData.expires_at).toISOString(),
-            tokenType: tokenData.token_type
-          }
-        }));
-      } else {
-        throw new Error('No access token in response');
-      }
-
-    } catch (error) {
-      console.error('Error during Spotify callback:', error);
-      setAuthError(error.message);
-      setDebugInfo(prevInfo => ({
-        ...prevInfo,
-        stage: 'error',
-        error: error.message
-      }));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [API_ENDPOINT]);
 
   const handleLogin = () => {
-    // Clear any existing auth before starting new flow
-    localStorage.removeItem('spotifyAuth');
-    
+    // Generate state parameter
     const state = crypto.getRandomValues(new Uint8Array(16))
       .reduce((acc, x) => acc + x.toString(16).padStart(2, '0'), '');
     sessionStorage.setItem('spotify_auth_state', state);
+    
+    // Clear any existing auth
+    localStorage.removeItem('spotifyAuth');
+    sessionStorage.removeItem('processed_auth_code');
     
     const authUrl = new URL(SPOTIFY_AUTH_URL);
     authUrl.searchParams.append('client_id', CLIENT_ID);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.append('scope', SCOPES.join(' '));
-    authUrl.searchParams.append('show_dialog', 'true');
     authUrl.searchParams.append('state', state);
     
     setDebugInfo({
@@ -166,19 +175,14 @@ const SpotifyAuth = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('spotifyAuth');
+    sessionStorage.removeItem('processed_auth_code');
+    sessionStorage.removeItem('spotify_auth_state');
     setAuthSuccess(false);
     setDebugInfo({
       stage: 'logged_out',
       timestamp: new Date().toISOString()
     });
   };
-
-  const debugPanel = (
-    <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
-      <h3 className="font-bold mb-2">Debug Information</h3>
-      <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
-    </div>
-  );
 
   if (isLoading) {
     return (
@@ -187,7 +191,12 @@ const SpotifyAuth = () => {
           <h2 className="mb-6 text-2xl font-bold text-center text-gray-800">
             Connecting to Spotify...
           </h2>
-          {debugPanel}
+          <div className="text-center text-gray-600">Please wait while we process your authentication</div>
+          {debugInfo && (
+            <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
+              <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -200,6 +209,9 @@ const SpotifyAuth = () => {
           <h2 className="mb-6 text-2xl font-bold text-center text-green-600">
             Successfully connected to Spotify!
           </h2>
+          <div className="mb-4 text-center text-gray-600">
+            Your Spotify account is now connected to the Streaming Analytics Platform
+          </div>
           <div className="flex justify-center">
             <button
               onClick={handleLogout}
@@ -208,7 +220,11 @@ const SpotifyAuth = () => {
               Disconnect
             </button>
           </div>
-          {debugPanel}
+          {debugInfo && (
+            <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
+              <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -236,7 +252,11 @@ const SpotifyAuth = () => {
           </button>
         </div>
         
-        {debugPanel}
+        {debugInfo && (
+          <div className="mt-4 p-4 bg-gray-100 rounded text-sm">
+            <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+        )}
       </div>
     </div>
   );
