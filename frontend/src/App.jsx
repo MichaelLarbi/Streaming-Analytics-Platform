@@ -1,6 +1,7 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import SpotifyAuth from "../src/components/auth/SpotifyAuth";
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import SpotifyAuth from './components/auth/SpotifyAuth';
+import './App.css';
 
 const Home = () => (
   <div className="min-h-screen bg-gray-100 py-12 px-4">
@@ -23,10 +24,12 @@ const Home = () => (
 const App = () => {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/spotify-auth" element={<SpotifyAuth />} />
-      </Routes>
+      <div className="app">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/spotify-auth" element={<SpotifyAuth />} />
+        </Routes>
+      </div>
     </Router>
   );
 };
