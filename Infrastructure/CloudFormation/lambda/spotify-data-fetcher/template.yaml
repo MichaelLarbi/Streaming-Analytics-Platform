@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda function for fetching Spotify data'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name'
+
+  ProjectName:
+    Type: String
+    Default: 'streaming-analytics'
+    Description: 'Project name for resource naming'
+
+Resources:
+  SpotifyDataFetcherFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-spotify-data-fetcher'
+      Handler: index.handler
+      Role: !GetAtt SpotifyDataFetcherRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Received event:', JSON.stringify(event, null, 2));
+            
+            try {
+              // Basic response for now - we'll enhance this later
+              return {
+                statusCode: 200,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                  message: 'Spotify data fetcher initialized'
+                })
+              };
+            } catch (error) {
+              console.error('Error:', error);
+              return {
+                statusCode: 500,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({
+                  error: 'Internal server error'
+                })
+              };
+            }
+          }
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  SpotifyDataFetcherRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-spotify-fetcher-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-${Environment}-spotify-fetcher-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:PutItem'
+                  - 'dynamodb:GetItem'
+                  - 'dynamodb:UpdateItem'
+                Resource: '*'  # You should restrict this to specific DynamoDB tables
+
+Outputs:
+  FunctionName:
+    Description: 'Lambda function name'
+    Value: !Ref SpotifyDataFetcherFunction
+
+  FunctionArn:
+    Description: 'Lambda function ARN'
+    Value: !GetAtt SpotifyDataFetcherFunction.Arn
+    
