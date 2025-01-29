@@ -18,13 +18,13 @@ Parameters:
 
   SpotifyClientId:
     Type: String
-    Description: 'Spotify Client ID'
     Default: '8cf77f03d31348b4953b2d65d96f1af1'
+    Description: 'Spotify Client ID'
 
   SpotifyClientSecret:
     Type: String
-    Description: 'Spotify Client Secret'
     Default: 'fd20de72b26c4d81a5f4b2bfd72349b0'
+    Description: 'Spotify Client Secret'
 
 Resources:
   SpotifyDataFetcherFunction:
@@ -36,71 +36,98 @@ Resources:
       Code:
         ZipFile: |
           const https = require('https');
+          const querystring = require('querystring');
 
-          async function makeRequest(options, body = null) {
+          // Cache for the access token
+          let cachedToken = null;
+          let tokenExpiration = null;
+
+          async function getSpotifyToken() {
+            // Check if we have a valid cached token
+            if (cachedToken && tokenExpiration && Date.now() < tokenExpiration) {
+              return cachedToken;
+            }
+
+            const clientId = process.env.SPOTIFY_CLIENT_ID;
+            const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
             return new Promise((resolve, reject) => {
-              const req = https.request(options, (res) => {
+              const authOptions = {
+                hostname: 'accounts.spotify.com',
+                path: '/api/token',
+                method: 'POST',
+                headers: {
+                  'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64'),
+                  'Content-Type': 'application/x-www-form-urlencoded'
+                }
+              };
+
+              const req = https.request(authOptions, (res) => {
                 let data = '';
-                res.on('data', (chunk) => { data += chunk; });
+                res.on('data', chunk => { data += chunk; });
                 res.on('end', () => {
-                  if (res.statusCode >= 200 && res.statusCode < 300) {
-                    resolve(JSON.parse(data));
-                  } else {
-                    reject(new Error(`Request failed with status ${res.statusCode}: ${data}`));
+                  try {
+                    const response = JSON.parse(data);
+                    if (response.access_token) {
+                      cachedToken = response.access_token;
+                      tokenExpiration = Date.now() + (response.expires_in * 1000);
+                      resolve(response.access_token);
+                    } else {
+                      reject(new Error('No access token in response'));
+                    }
+                  } catch (error) {
+                    reject(error);
                   }
                 });
               });
-              
-              req.on('error', (error) => reject(error));
-              if (body) req.write(body);
+
+              req.on('error', reject);
+              req.write('grant_type=client_credentials');
               req.end();
             });
           }
 
-          async function getSpotifyToken() {
-            const clientId = process.env.SPOTIFY_CLIENT_ID;
-            const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-            
-            const options = {
-              hostname: 'accounts.spotify.com',
-              path: '/api/token',
-              method: 'POST',
-              headers: {
-                'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64'),
-                'Content-Type': 'application/x-www-form-urlencoded'
-              }
-            };
-            
-            const body = 'grant_type=client_credentials';
-            const response = await makeRequest(options, body);
-            return response.access_token;
-          }
+          async function makeSpotifyRequest(path, token) {
+            return new Promise((resolve, reject) => {
+              const options = {
+                hostname: 'api.spotify.com',
+                path: path,
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              };
 
-          async function fetchSpotifyData(endpoint, token) {
-            const options = {
-              hostname: 'api.spotify.com',
-              path: endpoint,
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            };
-            
-            return await makeRequest(options);
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => { data += chunk; });
+                res.on('end', () => {
+                  try {
+                    resolve(JSON.parse(data));
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+              });
+
+              req.on('error', reject);
+              req.end();
+            });
           }
 
           exports.handler = async (event) => {
-            console.log('Received event:', JSON.stringify(event, null, 2));
-            
             try {
+              console.log('Event received:', JSON.stringify(event, null, 2));
+              
               // Get access token
               const token = await getSpotifyToken();
               
-              // Default endpoint if none specified
-              const endpoint = event.queryStringParameters?.endpoint || '/v1/me';
+              // Default to new releases if no specific endpoint is provided
+              const endpoint = event.queryStringParameters?.endpoint || '/v1/browse/new-releases';
               
-              // Fetch data from Spotify
-              const data = await fetchSpotifyData(endpoint, token);
+              // Make request to Spotify API
+              const data = await makeSpotifyRequest(endpoint, token);
               
               return {
                 statusCode: 200,
@@ -123,7 +150,7 @@ Resources:
                 })
               };
             }
-          }
+          };
       Runtime: nodejs18.x
       Timeout: 30
       MemorySize: 128
@@ -146,17 +173,6 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: !Sub '${ProjectName}-${Environment}-spotify-fetcher-policy'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - 'dynamodb:PutItem'
-                  - 'dynamodb:GetItem'
-                  - 'dynamodb:UpdateItem'
-                Resource: '*'
 
 Outputs:
   FunctionName:
