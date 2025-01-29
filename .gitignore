@@ -1,2 +1,35 @@
 infrastructure/cloudformation/spotify-oauth/parameters.json
 infrastructure/cloudformation/spotify-oauth/parameters.json
+
+# Environment files
+.env
+*/.env
+frontend/src/.env
+
+# Build outputs
+*.zip
+output.json
+
+# macOS system files
+.DS_Store
+*/.DS_Store
+
+# Node modules
+node_modules/
+*/node_modules/
+
+# Build directories
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE files
+.vscode/
+.idea/
+
+# Backup files
+*.backup
+*/*.backup
