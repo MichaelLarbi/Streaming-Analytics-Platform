@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Spotify Token Refresh Lambda Function and API Gateway Integration'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+  
+  SpotifyClientId:
+    Type: String
+    NoEcho: true
+  
+  SpotifyClientSecret:
+    Type: String
+    NoEcho: true
+  
+  AllowedOrigin:
+    Type: String
+    Default: 'http://localhost:5174'
+
+Resources:
+  RefreshTokenFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-refresh-token'
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          // Function code will be replaced during deployment
+      Environment:
+        Variables:
+          SPOTIFY_CLIENT_ID: !Ref SpotifyClientId
+          SPOTIFY_CLIENT_SECRET: !Ref SpotifyClientSecret
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 10
+      MemorySize: 128
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  RefreshTokenApi:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: !Sub '${AWS::StackName}-refresh-api'
+
+  RefreshTokenResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref RefreshTokenApi
+      ParentId: !GetAtt RefreshTokenApi.RootResourceId
+      PathPart: 'refresh'
+
+  RefreshTokenMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref RefreshTokenApi
+      ResourceId: !Ref RefreshTokenResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RefreshTokenFunction.Arn}/invocations'
+
+  RefreshTokenCorsMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref RefreshTokenApi
+      ResourceId: !Ref RefreshTokenResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - RefreshTokenMethod
+      - RefreshTokenCorsMethod
+    Properties:
+      RestApiId: !Ref RefreshTokenApi
+
+  ApiStage:
+    Type: 'AWS::ApiGateway::Stage'
+    Properties:
+      DeploymentId: !Ref ApiDeployment
+      RestApiId: !Ref RefreshTokenApi
+      StageName: !Ref Environment
+
+  LambdaApiPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt RefreshTokenFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RefreshTokenApi}/*/*/*'
+
+Outputs:
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL for token refresh'
+    Value: !Sub 'https://${RefreshTokenApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/refresh'
