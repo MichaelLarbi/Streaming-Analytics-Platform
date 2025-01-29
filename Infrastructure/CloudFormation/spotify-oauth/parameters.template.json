@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "dev"
+  },
+  {
+    "ParameterKey": "SpotifyClientId",
+    "ParameterValue": "your-client-id"
+  },
+  {
+    "ParameterKey": "SpotifyClientSecret",
+    "ParameterValue": "your-client-secret"
+  },
+  {
+    "ParameterKey": "SpotifyRedirectUri",
+    "ParameterValue": "your-redirect-uri"
+  }
+]
