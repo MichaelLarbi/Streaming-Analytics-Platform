@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Scheduled Data Collection for Spotify Analytics'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name for resource naming'
+
+  ProjectName:
+    Type: String
+    Default: 'streaming-analytics'
+    Description: 'Base name for project resources'
+
+  ScheduleExpression:
+    Type: String
+    Default: 'rate(1 hour)'
+    Description: 'Schedule expression for data collection'
+
+Resources:
+  # EventBridge Rule
+  SpotifyDataCollectionRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-spotify-collection'
+      Description: 'Trigger Spotify data collection on schedule'
+      ScheduleExpression: !Ref ScheduleExpression
+      State: 'ENABLED'
+      Targets:
+        - Arn: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:streaming-analytics-dev-spotify-data-fetcher'
+          Id: 'SpotifyDataFetcher'
+
+  # Lambda Permission for EventBridge
+  LambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: 'streaming-analytics-dev-spotify-data-fetcher'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt SpotifyDataCollectionRule.Arn
+
+Outputs:
+  EventRuleArn:
+    Description: 'EventBridge Rule ARN'
+    Value: !GetAtt SpotifyDataCollectionRule.Arn
+    
