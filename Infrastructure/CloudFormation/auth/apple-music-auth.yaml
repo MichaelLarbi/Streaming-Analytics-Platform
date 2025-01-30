@@ -1,0 +1,90 @@
+// Infrastructure/CloudFormation/auth/apple-music-auth.yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Apple Music Authentication Setup for Streaming Analytics Platform'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+  
+  ProjectName:
+    Type: String
+    Default: 'streaming-analytics'
+
+Resources:
+  AppleMusicAuthFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${ProjectName}-${Environment}-apple-music-auth'
+      Handler: index.handler
+      Role: !GetAtt AppleMusicAuthRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            // Implementation will be added in separate file
+            return {
+              statusCode: 200,
+              body: JSON.stringify({ message: 'Apple Music Auth Handler' })
+            };
+          };
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: 'http://localhost:5174'
+
+  AppleMusicAuthRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ProjectName}-${Environment}-apple-music-auth-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  AppleMusicAuthApi:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: 'apple-music'
+
+  AppleMusicAuthMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref AppleMusicAuthApi
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppleMusicAuthFunction.Arn}/invocations'
+
+  ApiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-api'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+Outputs:
+  AppleMusicAuthFunctionArn:
+    Description: 'Apple Music Auth Lambda Function ARN'
+    Value: !GetAtt AppleMusicAuthFunction.Arn
+
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    
