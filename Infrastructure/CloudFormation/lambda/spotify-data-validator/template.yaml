@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Spotify Data Validator Lambda Function'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name'
+
+Resources:
+  SpotifyValidatorFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub 'spotify-data-validator-${Environment}'
+      Handler: index.handler
+      Role: !GetAtt SpotifyValidatorRole.Arn
+      Code:
+        S3Bucket: !Sub 'streaming-analytics-${Environment}'
+        S3Key: lambda/spotify-data-validator.zip
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  SpotifyValidatorRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'spotify-validator-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  SpotifyValidatorLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/spotify-data-validator-${Environment}'
+      RetentionInDays: 14
+
+Outputs:
+  SpotifyValidatorFunctionArn:
+    Description: 'Spotify Validator Lambda Function ARN'
+    Value: !GetAtt SpotifyValidatorFunction.Arn
