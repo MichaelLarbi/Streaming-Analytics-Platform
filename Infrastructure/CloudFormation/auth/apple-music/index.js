@@ -1,35 +1,35 @@
 exports.handler = async (event) => {
-    console.log('Event:', JSON.stringify(event));
+    console.log('Event:', JSON.stringify(event, null, 2));
     
+    // CORS headers
     const headers = {
         'Access-Control-Allow-Origin': 'http://localhost:5174',
-        'Access-Control-Allow-Methods': 'POST,OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-        'Content-Type': 'application/json'
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST',
+        'Access-Control-Allow-Credentials': true
     };
-
-    // Handle preflight requests
+    
+    // Handle OPTIONS request for CORS
     if (event.httpMethod === 'OPTIONS') {
         return {
             statusCode: 200,
             headers,
-            body: ''
+            body: JSON.stringify({ message: 'CORS preflight handled successfully' })
         };
     }
-
+    
     try {
-        // Mock successful response
+        // Mock authentication response
+        const response = {
+            authenticated: true,
+            timestamp: new Date().toISOString(),
+            requestId: event.requestContext?.requestId || 'test-request'
+        };
+        
         return {
             statusCode: 200,
             headers,
-            body: JSON.stringify({
-                token: `mock-token-${Date.now()}`,
-                expiresIn: 3600,
-                mockData: {
-                    status: 'success',
-                    message: 'Mock Apple Music authentication successful'
-                }
-            })
+            body: JSON.stringify(response)
         };
     } catch (error) {
         console.error('Error:', error);
