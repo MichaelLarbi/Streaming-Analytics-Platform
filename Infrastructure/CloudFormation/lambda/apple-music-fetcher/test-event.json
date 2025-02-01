@@ -1,0 +1,20 @@
+{
+    "resource": "/apple-music",
+    "path": "/apple-music",
+    "httpMethod": "GET",
+    "headers": {
+      "Accept": "*/*",
+      "Host": "api.example.com",
+      "User-Agent": "TestClient/1.0"
+    },
+    "requestContext": {
+      "resourceId": "123456",
+      "resourcePath": "/apple-music",
+      "httpMethod": "GET",
+      "requestTime": "01/Feb/2025:12:00:00 +0000",
+      "path": "/dev/apple-music",
+      "protocol": "HTTP/1.1",
+      "stage": "dev"
+    }
+  }
+  

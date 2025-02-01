@@ -52,33 +52,60 @@ const storeData = async (data, tableName) => {
   await dynamoDB.put(params).promise();
 };
 
+// Mock data generator for development/testing
+const generateMockData = () => {
+  return {
+    data: {
+      analytics: {
+        streams: 1000,
+        listeners: 500,
+        playlists: 50,
+        topCountries: ['US', 'UK', 'CA'],
+        trending: true
+      },
+      timestamp: new Date().toISOString()
+    }
+  };
+};
+
 // Main handler function
 exports.handler = async (event) => {
   try {
-    // Get Apple Music credentials from environment variables
-    const { 
-      PRIVATE_KEY,
-      KEY_ID,
-      TEAM_ID,
-      TABLE_NAME
-    } = process.env;
+    // Check if we're in mock mode (no real credentials)
+    const isMockMode = !process.env.PRIVATE_KEY || 
+                      process.env.PRIVATE_KEY === 'mock_private_key';
 
-    // Generate Apple Music API token
-    const token = generateToken(PRIVATE_KEY, KEY_ID, TEAM_ID);
+    let data;
+    
+    if (isMockMode) {
+      console.log('Running in mock mode - generating mock data');
+      data = generateMockData();
+    } else {
+      // Get Apple Music credentials from environment variables
+      const { 
+        PRIVATE_KEY,
+        KEY_ID,
+        TEAM_ID,
+        TABLE_NAME
+      } = process.env;
 
-    // Configure request headers
-    const options = {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    };
+      // Generate Apple Music API token
+      const token = generateToken(PRIVATE_KEY, KEY_ID, TEAM_ID);
 
-    // Fetch data from Apple Music API
-    const data = await makeRequest('https://api.music.apple.com/v1/catalog/analytics', options);
+      // Configure request headers
+      const options = {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      };
+
+      // Fetch data from Apple Music API
+      data = await makeRequest('https://api.music.apple.com/v1/catalog/analytics', options);
+    }
 
     // Store data in DynamoDB
-    await storeData(data, TABLE_NAME);
+    await storeData(data, process.env.TABLE_NAME || 'streaming-analytics-dev-raw-streaming-data');
 
     return {
       statusCode: 200,
@@ -88,7 +115,8 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         message: 'Data fetched and stored successfully',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        mode: isMockMode ? 'mock' : 'live'
       })
     };
 
