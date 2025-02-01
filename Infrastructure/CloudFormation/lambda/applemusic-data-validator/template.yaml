@@ -1,5 +1,3 @@
-// /Infrastructure/CloudFormation/lambda/apple-music-validator/template.yaml
-
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Apple Music Data Validator Lambda Function'
 
@@ -54,4 +52,3 @@ Outputs:
   AppleMusicValidatorFunctionArn:
     Description: 'Apple Music Validator Lambda Function ARN'
     Value: !GetAtt AppleMusicValidatorFunction.Arn
-    
