@@ -3,6 +3,8 @@ import SpotifyAuth from './SpotifyAuth';
 import AppleMusicAuth from './AppleMusicAuth';
 
 const TestPage = () => {
+  console.log('TestPage rendering');  // Debug log
+  
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">
@@ -16,31 +18,11 @@ const TestPage = () => {
             <SpotifyAuth />
           </div>
 
+          {/* Debug message to verify this section renders */}
           <div className="pt-6 border-t border-gray-200">
+            <p>Apple Music Section:</p>
             <AppleMusicAuth />
           </div>
-        </div>
-
-        <div className="mt-8 text-sm text-gray-600">
-          <p className="font-medium mb-2">Test Instructions:</p>
-          <ol className="list-decimal pl-5 space-y-2">
-            <li>Test Spotify Authentication:
-              <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Click the "Connect Spotify Account" button</li>
-                <li>Sign in to Spotify if needed</li>
-                <li>Authorize the application</li>
-                <li>You should be redirected back here</li>
-                <li>Check for successful authentication message</li>
-              </ul>
-            </li>
-            <li>Test Apple Music Authentication:
-              <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Click the "Connect Apple Music" button</li>
-                <li>Verify the mock authentication response</li>
-                <li>Check the connection status updates</li>
-              </ul>
-            </li>
-          </ol>
         </div>
       </div>
     </div>

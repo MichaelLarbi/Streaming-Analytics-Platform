@@ -1,15 +1,18 @@
-// frontend/src/components/auth/AppleMusicAuth.jsx
-
 import React, { useState, useEffect } from 'react';
 import { encryptToken, decryptToken } from './authUtils';
 
 const AppleMusicAuth = () => {
+  console.log('AppleMusicAuth component rendering');
+
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check for existing token on component mount
   useEffect(() => {
+    console.log('AppleMusicAuth useEffect running');
+    // Log the API endpoint to verify it's correct
+    console.log('API Endpoint:', import.meta.env.VITE_API_ENDPOINT);
+    
     const checkExistingAuth = () => {
       const encrypted = localStorage.getItem('apple_music_auth');
       if (encrypted) {
@@ -17,7 +20,6 @@ const AppleMusicAuth = () => {
         if (token && token.expiresAt > Date.now()) {
           setIsAuthenticated(true);
         } else {
-          // Clear expired token
           localStorage.removeItem('apple_music_auth');
         }
       }
@@ -27,30 +29,41 @@ const AppleMusicAuth = () => {
   }, []);
 
   const handleAuthentication = async () => {
+    console.log('handleAuthentication called');
     setIsLoading(true);
     setAuthError(null);
 
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/apple-music`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+    const apiUrl = `${import.meta.env.VITE_API_ENDPOINT}/apple-music`;
+    console.log('Attempting to fetch from:', apiUrl);
 
+    try {
+      console.log('Making fetch request...');
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      console.log('Response received:', response);
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error('Authentication failed');
+        const errorText = await response.text();
+        console.error('Response not OK. Status:', response.status, 'Error:', errorText);
+        throw new Error(`Authentication failed: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('Response data:', data);
       
-      // Store token with expiration
+      // Store the authentication data
       const tokenData = {
-        token: data.token,
-        expiresAt: Date.now() + (data.expiresIn * 1000)
+        authenticated: data.authenticated,
+        timestamp: data.timestamp,
+        requestId: data.requestId,
+        expiresAt: Date.now() + (3600 * 1000) // 1 hour expiration
       };
 
       const encrypted = encryptToken(tokenData);
@@ -59,7 +72,7 @@ const AppleMusicAuth = () => {
       setIsAuthenticated(true);
     } catch (error) {
       console.error('Auth Error:', error);
-      setAuthError('Failed to authenticate with Apple Music');
+      setAuthError(`Failed to authenticate with Apple Music: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +113,10 @@ const AppleMusicAuth = () => {
           {isLoading ? 'Connecting...' : 'Connect Apple Music'}
         </button>
       )}
+
+      <div className="mt-4 text-sm text-gray-600">
+        <p>API Endpoint: {import.meta.env.VITE_API_ENDPOINT}</p>
+      </div>
     </div>
   );
 };

@@ -24,9 +24,32 @@ Resources:
       Code:
         ZipFile: |
           exports.handler = async (event) => {
+            const headers = {
+              'Access-Control-Allow-Origin': 'http://localhost:5174',
+              'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+              'Access-Control-Allow-Methods': 'POST,OPTIONS',
+              'Access-Control-Allow-Credentials': 'true'
+            };
+            
+            // Handle OPTIONS request
+            if (event.httpMethod === 'OPTIONS') {
+              return {
+                statusCode: 200,
+                headers,
+                body: ''
+              };
+            }
+
             return {
               statusCode: 200,
-              body: JSON.stringify({ message: "Apple Music Auth Handler" })
+              headers,
+              body: JSON.stringify({
+                token: 'mock-token',
+                expiresIn: 15777000,
+                mockData: {
+                  message: 'Mock Apple Music Authentication Successful'
+                }
+              })
             };
           };
       Runtime: nodejs18.x
@@ -35,7 +58,6 @@ Resources:
       Environment:
         Variables:
           ALLOWED_ORIGIN: "http://localhost:5174"
-          MOCK_MODE: "true"
 
   AppleMusicAuthRole:
     Type: AWS::IAM::Role
@@ -50,12 +72,6 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-
-  AppleMusicAuthLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}-apple-music-auth"
-      RetentionInDays: 30
 
   ApiGateway:
     Type: AWS::ApiGateway::RestApi
@@ -83,6 +99,12 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AppleMusicAuthFunction.Arn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
 
   AppleMusicAuthCorsMethod:
     Type: AWS::ApiGateway::Method
@@ -107,6 +129,21 @@ Resources:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - AppleMusicAuthMethod
+      - AppleMusicAuthCorsMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref ApiDeployment
+      RestApiId: !Ref ApiGateway
+      StageName: !Ref Environment
 
 Outputs:
   AppleMusicAuthFunctionArn:
