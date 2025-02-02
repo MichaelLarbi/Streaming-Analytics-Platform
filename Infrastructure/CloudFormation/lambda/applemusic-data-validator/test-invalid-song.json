@@ -1,0 +1,12 @@
+{
+  "body": {
+    "dataType": "song",
+    "id": "123456789",
+    "type": "songs",
+    "attributes": {
+      "name": "",
+      "durationInMillis": "invalid",
+      "albumName": null
+    }
+  }
+}
