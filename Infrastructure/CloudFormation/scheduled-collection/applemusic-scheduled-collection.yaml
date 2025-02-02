@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Scheduled Data Collection for Apple Music Analytics'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name for resource naming'
+
+  ProjectName:
+    Type: String
+    Default: 'streaming-analytics'
+    Description: 'Base name for project resources'
+
+  ScheduleExpression:
+    Type: String
+    Default: 'rate(1 hour)'
+    Description: 'Schedule expression for data collection'
+
+Resources:
+  # EventBridge Rule
+  AppleMusicDataCollectionRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Name: !Sub '${ProjectName}-${Environment}-apple-music-collection'
+      Description: 'Trigger Apple Music data collection on schedule'
+      ScheduleExpression: !Ref ScheduleExpression
+      State: 'ENABLED'
+      Targets:
+        - Arn: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:streaming-analytics-dev-apple-music-data-fetcher'
+          Id: 'AppleMusicDataFetcher'
+
+  # Lambda Permission for EventBridge
+  LambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: 'streaming-analytics-dev-apple-music-data-fetcher'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt AppleMusicDataCollectionRule.Arn
+
+Outputs:
+  EventRuleArn:
+    Description: 'EventBridge Rule ARN'
+    Value: !GetAtt AppleMusicDataCollectionRule.Arn
+    
