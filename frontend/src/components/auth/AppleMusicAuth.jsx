@@ -1,18 +1,68 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { encryptToken, decryptToken } from './authUtils';
 
 const AppleMusicAuth = () => {
   console.log('AppleMusicAuth component rendering');
-
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [musicKit, setMusicKit] = useState(null);
+  const [initializationComplete, setInitializationComplete] = useState(false);
 
+  // Handle MusicKit authorization status changes
+  const handleAuthChange = useCallback((event) => {
+    console.log('Authorization status changed:', event);
+    if (event.authorizationStatus) {
+      handleAuthentication();
+    } else {
+      handleDisconnect();
+    }
+  }, []);
+
+  // Initialize MusicKit
   useEffect(() => {
-    console.log('AppleMusicAuth useEffect running');
-    // Log the API endpoint to verify it's correct
-    console.log('API Endpoint:', import.meta.env.VITE_API_ENDPOINT);
-    
+    const initializeMusicKit = async () => {
+      try {
+        setIsLoading(true);
+        const music = await window.MusicKit.configure({
+          developerToken: import.meta.env.VITE_APPLE_MUSIC_TOKEN,
+          app: {
+            name: 'Streaming Analytics',
+            build: '1.0.0'
+          }
+        });
+        
+        setMusicKit(music);
+        music.addEventListener('authorizationStatusDidChange', handleAuthChange);
+        
+        // Check if already authorized
+        if (music.isAuthorized) {
+          handleAuthentication();
+        }
+        
+        setInitializationComplete(true);
+      } catch (err) {
+        console.error('Error initializing MusicKit:', err);
+        setAuthError('Failed to initialize Apple Music integration');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (window.MusicKit) {
+      initializeMusicKit();
+    }
+
+    // Cleanup function
+    return () => {
+      if (musicKit) {
+        musicKit.removeEventListener('authorizationStatusDidChange', handleAuthChange);
+      }
+    };
+  }, [handleAuthChange]);
+
+  // Check existing authentication
+  useEffect(() => {
     const checkExistingAuth = () => {
       const encrypted = localStorage.getItem('apple_music_auth');
       if (encrypted) {
@@ -21,23 +71,49 @@ const AppleMusicAuth = () => {
           setIsAuthenticated(true);
         } else {
           localStorage.removeItem('apple_music_auth');
+          if (musicKit && musicKit.isAuthorized) {
+            handleDisconnect();
+          }
         }
       }
     };
 
     checkExistingAuth();
-  }, []);
+  }, [musicKit]);
+
+  const handleAuthenticationWithRetry = async (retryCount = 3) => {
+    for (let i = 0; i < retryCount; i++) {
+      try {
+        await handleAuthentication();
+        return;
+      } catch (error) {
+        if (i === retryCount - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+  };
 
   const handleAuthentication = async () => {
     console.log('handleAuthentication called');
+    if (!initializationComplete) {
+      setAuthError('MusicKit initialization not complete');
+      return;
+    }
+
     setIsLoading(true);
     setAuthError(null);
 
-    const apiUrl = `${import.meta.env.VITE_API_ENDPOINT}/apple-music`;
-    console.log('Attempting to fetch from:', apiUrl);
-
     try {
-      console.log('Making fetch request...');
+      if (!musicKit) {
+        throw new Error('MusicKit not initialized');
+      }
+
+      if (!musicKit.isAuthorized) {
+        await musicKit.authorize();
+      }
+
+      const apiUrl = `${import.meta.env.VITE_API_ENDPOINT}/apple-music`;
+      console.log('Attempting to fetch from:', apiUrl);
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -45,25 +121,19 @@ const AppleMusicAuth = () => {
         },
         credentials: 'include'
       });
-
-      console.log('Response received:', response);
-      console.log('Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Response not OK. Status:', response.status, 'Error:', errorText);
         throw new Error(`Authentication failed: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
       
-      // Store the authentication data
       const tokenData = {
         authenticated: data.authenticated,
         timestamp: data.timestamp,
         requestId: data.requestId,
-        expiresAt: Date.now() + (3600 * 1000) // 1 hour expiration
+        expiresAt: Date.now() + (3600 * 1000)
       };
 
       const encrypted = encryptToken(tokenData);
@@ -73,14 +143,24 @@ const AppleMusicAuth = () => {
     } catch (error) {
       console.error('Auth Error:', error);
       setAuthError(`Failed to authenticate with Apple Music: ${error.message}`);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDisconnect = () => {
-    localStorage.removeItem('apple_music_auth');
-    setIsAuthenticated(false);
+  const handleDisconnect = async () => {
+    try {
+      if (musicKit && musicKit.isAuthorized) {
+        await musicKit.unauthorize();
+      }
+      localStorage.removeItem('apple_music_auth');
+      setIsAuthenticated(false);
+      setAuthError(null);
+    } catch (error) {
+      console.error('Error during disconnect:', error);
+      setAuthError('Failed to disconnect from Apple Music');
+    }
   };
 
   return (
@@ -106,12 +186,16 @@ const AppleMusicAuth = () => {
         </div>
       ) : (
         <button
-          onClick={handleAuthentication}
+          onClick={() => handleAuthenticationWithRetry()}
           className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
-          disabled={isLoading}
+          disabled={isLoading || !initializationComplete}
         >
           {isLoading ? 'Connecting...' : 'Connect Apple Music'}
         </button>
+      )}
+
+      {!initializationComplete && (
+        <p className="mt-2 text-gray-600">Initializing Apple Music...</p>
       )}
 
       <div className="mt-4 text-sm text-gray-600">
