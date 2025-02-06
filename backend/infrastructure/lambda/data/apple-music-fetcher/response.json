@@ -1,0 +1,1 @@
+{"statusCode":200,"headers":{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"},"body":"{\"message\":\"Data fetched and stored successfully\",\"timestamp\":\"2025-02-01T15:47:30.056Z\",\"mode\":\"mock\"}"}

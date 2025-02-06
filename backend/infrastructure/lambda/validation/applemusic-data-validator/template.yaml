@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Apple Music Data Validator Lambda Function'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues:
+      - 'dev'
+      - 'staging'
+      - 'prod'
+    Description: 'Environment name'
+
+Resources:
+  AppleMusicValidatorFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub 'apple-music-validator-${Environment}'
+      Handler: index.handler
+      Role: !GetAtt AppleMusicValidatorRole.Arn
+      Code:
+        S3Bucket: !Sub 'streaming-analytics-${Environment}'
+        S3Key: lambda/apple-music-validator.zip
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  AppleMusicValidatorRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'apple-music-validator-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  AppleMusicValidatorLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/apple-music-validator-${Environment}'
+      RetentionInDays: 14
+
+Outputs:
+  AppleMusicValidatorFunctionArn:
+    Description: 'Apple Music Validator Lambda Function ARN'
+    Value: !GetAtt AppleMusicValidatorFunction.Arn
+    

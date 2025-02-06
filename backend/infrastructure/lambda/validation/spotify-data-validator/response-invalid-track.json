@@ -1,0 +1,1 @@
+{"statusCode":400,"headers":{"Content-Type":"application/json","Access-Control-Allow-Origin":"*"},"body":"{\"message\":\"Validation failed\",\"errors\":[\"Missing required field: name\",\"Missing required field: duration_ms\",\"Popularity must be an integer\"]}"}

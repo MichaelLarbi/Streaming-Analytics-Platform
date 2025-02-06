@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Spotify OAuth Integration Setup'
+
+Resources:
+  SpotifyCallbackFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: spotify-oauth-handler-v2
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Role: !GetAtt SpotifyLambdaRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Received event:', JSON.stringify(event, null, 2));
+            
+            try {
+              // Handle CORS
+              const headers = {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+                'Access-Control-Allow-Methods': 'GET,OPTIONS'
+              };
+              
+              // Handle OPTIONS request for CORS
+              if (event.httpMethod === 'OPTIONS') {
+                return {
+                  statusCode: 200,
+                  headers: headers,
+                  body: ''
+                };
+              }
+              
+              // Extract authorization code from query parameters
+              const queryParams = event.queryStringParameters || {};
+              const code = queryParams.code;
+              
+              if (!code) {
+                return {
+                  statusCode: 400,
+                  headers: headers,
+                  body: JSON.stringify({ error: 'Missing authorization code' })
+                };
+              }
+              
+              // For now, just return the code (we'll implement token exchange later)
+              return {
+                statusCode: 200,
+                headers: headers,
+                body: JSON.stringify({ 
+                  message: 'Authorization code received',
+                  code: code
+                })
+              };
+              
+            } catch (error) {
+              console.error('Error:', error);
+              return {
+                statusCode: 500,
+                headers: {
+                  'Access-Control-Allow-Origin': '*'
+                },
+                body: JSON.stringify({ error: 'Internal server error' })
+              };
+            }
+          }
+      MemorySize: 128
+      Timeout: 30
+      Environment:
+        Variables:
+          SPOTIFY_CLIENT_ID: '8cf77f03d31348b4953b2d65d96f1af1'
+
+  SpotifyLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: spotify-oauth-lambda-role-v2
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  SpotifyApi:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: spotify-oauth-api-v2
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  SpotifyResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref SpotifyApi
+      ParentId: !GetAtt SpotifyApi.RootResourceId
+      PathPart: 'spotify'
+
+  CallbackResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref SpotifyApi
+      ParentId: !Ref SpotifyResource
+      PathPart: 'callback'
+
+  CallbackMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref SpotifyApi
+      ResourceId: !Ref CallbackResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FunctionArn}/invocations
+          - FunctionArn: !GetAtt SpotifyCallbackFunction.Arn
+
+  OptionsMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref SpotifyApi
+      ResourceId: !Ref CallbackResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - CallbackMethod
+      - OptionsMethod
+    Properties:
+      RestApiId: !Ref SpotifyApi
+
+  ApiStage:
+    Type: 'AWS::ApiGateway::Stage'
+    Properties:
+      DeploymentId: !Ref ApiDeployment
+      RestApiId: !Ref SpotifyApi
+      StageName: 'dev'
+
+  LambdaApiPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt SpotifyCallbackFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SpotifyApi}/*/*/*
+
+Outputs:
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub https://${SpotifyApi}.execute-api.${AWS::Region}.amazonaws.com/dev/spotify/callback
