@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import SpotifyAuth from './components/auth/SpotifyAuth';
 import AppleMusicAuth from './components/auth/AppleMusicAuth';
+import AppleMusicTest from './components/auth/AppleMusicTest';
 import './App.css';
 
 const Home = () => (
@@ -29,6 +30,21 @@ const Home = () => (
   </div>
 );
 
+const AppleMusicPage = () => (
+  <div className="min-h-screen bg-gray-100 py-12 px-4">
+    <div className="max-w-4xl mx-auto space-y-8">
+      <AppleMusicAuth />
+      <AppleMusicTest />
+      <Link
+        to="/"
+        className="inline-block px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+      >
+        Back to Home
+      </Link>
+    </div>
+  </div>
+);
+
 const App = () => {
   return (
     <Router>
@@ -36,7 +52,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/spotify-auth" element={<SpotifyAuth />} />
-          <Route path="/apple-music-auth" element={<AppleMusicAuth />} />
+          <Route path="/apple-music-auth" element={<AppleMusicPage />} />
         </Routes>
       </div>
     </Router>

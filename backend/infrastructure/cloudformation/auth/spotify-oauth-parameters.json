@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "dev"
+  },
+  {
+    "ParameterKey": "SpotifyClientId",
+    "ParameterValue": "8cf77f03d31348b4953b2d65d96f1af1"
+  },
+  {
+    "ParameterKey": "SpotifyClientSecret",
+    "ParameterValue": "fd20de72b26c4d81a5f4b2bfd72349b0"
+  },
+  {
+    "ParameterKey": "SpotifyRedirectUri",
+    "ParameterValue": "https://0o0aso95ik.execute-api.eu-west-2.amazonaws.com/dev/spotify/callback"
+  }
+]

@@ -93,7 +93,7 @@ const SpotifyAuth = () => {
         localStorage.setItem('spotify_auth', encryptToken(tokenData));
         sessionStorage.setItem('spotify_auth_code', code);
         setAuthSuccess(true);
-      } else { 
+      } else {
         throw new Error('Invalid token response');
       }
     } catch (error) {
@@ -220,38 +220,38 @@ const SpotifyAuth = () => {
     );
   }
   const forceTokenExpiration = async () => {
-    try {
-      const auth = localStorage.getItem('spotify_auth');
-      if (auth) {
-        const decoded = decryptToken(auth);
-        decoded.expires_at = Date.now() - 1000; // Set expiration to 1 second ago
-        localStorage.setItem('spotify_auth', encryptToken(decoded));
-        console.log('Token expiration forced');
-        setRefreshStatus('Token expiration forced - attempting refresh...');
-        
-        // Actively trigger the refresh
-        if (decoded.refresh_token) {
-          try {
-            const newTokens = await refreshAccessToken(decoded.refresh_token);
-            const updatedAuth = {
-              ...decoded,
-              access_token: newTokens.access_token,
-              expires_at: Date.now() + (newTokens.expires_in * 1000)
-            };
-            localStorage.setItem('spotify_auth', encryptToken(updatedAuth));
-            setRefreshStatus('Token refreshed successfully');
-            setTimeout(() => setRefreshStatus(null), 3000);
-          } catch (error) {
-            console.error('Refresh failed:', error);
-            setRefreshStatus('Token refresh failed');
-          }
+  try {
+    const auth = localStorage.getItem('spotify_auth');
+    if (auth) {
+      const decoded = decryptToken(auth);
+      decoded.expires_at = Date.now() - 1000; // Set expiration to 1 second ago
+      localStorage.setItem('spotify_auth', encryptToken(decoded));
+      console.log('Token expiration forced');
+      setRefreshStatus('Token expiration forced - attempting refresh...');
+      
+      // Actively trigger the refresh
+      if (decoded.refresh_token) {
+        try {
+          const newTokens = await refreshAccessToken(decoded.refresh_token);
+          const updatedAuth = {
+            ...decoded,
+            access_token: newTokens.access_token,
+            expires_at: Date.now() + (newTokens.expires_in * 1000)
+          };
+          localStorage.setItem('spotify_auth', encryptToken(updatedAuth));
+          setRefreshStatus('Token refreshed successfully');
+          setTimeout(() => setRefreshStatus(null), 3000);
+        } catch (error) {
+          console.error('Refresh failed:', error);
+          setRefreshStatus('Token refresh failed');
         }
       }
-    } catch (error) {
-      console.error('Error forcing expiration:', error);
-      setRefreshStatus('Error during token refresh process');
     }
-  };
+  } catch (error) {
+    console.error('Error forcing expiration:', error);
+    setRefreshStatus('Error during token refresh process');
+  }
+};
 
   if (authSuccess) {
     return (
@@ -323,3 +323,5 @@ const SpotifyAuth = () => {
 };
 
 export default SpotifyAuth;
+
+// Content from the spotify-oauth-simplified artifact above
