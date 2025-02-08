@@ -55,4 +55,5 @@ npm-debug.log*
 
 # Backup files
 *.backup
-*/*.backup
+*/*.backup.DS_Store
+**/.DS_Store
