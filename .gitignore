@@ -28,3 +28,60 @@ build/
 
 # Backup files
 *.backup
+
+# Environment files
+.env
+**/.env
+
+# Python
+__pycache__/
+**/__pycache__/
+
+# Lambda deployment packages
+*.zip
+**/function.zip
+
+# Output files
+**/output.json
+
+# Environment files
+.env
+.env.local
+
+# Python
+__pycache__
+.pyc
+
+# Lambda deployment packages
+function.zip
+spotify-refresh-function.zip
+apple-music-validator.zip
+spotify-data-validator.zip
+
+# Output files
+output.json
+
+# IDE and system files
+.vscode
+.idea
+.pyc
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+build
+
+# AWS
+.aws
+.aws-sam
+
+# Backup files
+.backup
