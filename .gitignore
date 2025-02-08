@@ -1,3 +1,30 @@
+# macOS system files
 .DS_Store
-**/.DS_Store
-.DS_Store?
+.AppleDouble
+.LSOverride
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AWS
+.aws/
+.aws-sam/
+
+# Backup files
+*.backup
